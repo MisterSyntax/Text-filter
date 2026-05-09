@@ -10,14 +10,14 @@ import androidx.core.app.NotificationCompat
 import com.mistersyntax.textfilter.R
 import com.mistersyntax.textfilter.db.BlockedMessage
 import com.mistersyntax.textfilter.db.SpamDatabase
+import com.mistersyntax.textfilter.filter.RuleRepository
 import com.mistersyntax.textfilter.filter.SpamDetector
+import com.mistersyntax.textfilter.util.ContactChecker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class SmsReceiver : BroadcastReceiver() {
-
-    private val detector = SpamDetector()
 
     override fun onReceive(context: Context, intent: Intent) {
         val isDefaultAppDelivery = intent.action == Telephony.Sms.Intents.SMS_DELIVER_ACTION
@@ -28,19 +28,27 @@ class SmsReceiver : BroadcastReceiver() {
 
         if (body.isBlank()) return
 
-        val result = detector.analyze(body)
-        if (!result.isSpam) return
-
-        // Consume the broadcast so the system SMS inbox never sees this message.
-        // abortBroadcast() is only effective when we are the default SMS app receiving
-        // SMS_DELIVER (ordered broadcast). For SMS_RECEIVED (monitor mode) it still
-        // suppresses delivery to lower-priority receivers but does NOT prevent the
-        // system from writing the message to the SMS content provider.
-        abortBroadcast()
-
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                val repo = RuleRepository(context)
+
+                // Skip filtering if the setting is on and sender is a saved contact
+                if (repo.onlyUnknownSenders && ContactChecker.isKnownContact(context, sender)) {
+                    return@launch
+                }
+
+                val activeRules = repo.getActiveRules()
+                if (activeRules.isEmpty()) return@launch
+
+                val result = SpamDetector(activeRules).analyze(body)
+                if (!result.isSpam) return@launch
+
+                // Consume the broadcast. Only truly effective as the default SMS app
+                // receiving SMS_DELIVER; in monitor mode it suppresses lower-priority
+                // receivers but does not stop the system from writing to the SMS store.
+                abortBroadcast()
+
                 SpamDatabase.get(context).blockedMessageDao().insert(
                     BlockedMessage(
                         sender = sender,
@@ -64,7 +72,7 @@ class SmsReceiver : BroadcastReceiver() {
             CHANNEL_ID,
             "Spam blocked",
             NotificationManager.IMPORTANCE_LOW,
-        ).apply { description = "Silent alerts when political spam texts are blocked" }
+        ).apply { description = "Silent alerts when spam texts are blocked" }
         nm.createNotificationChannel(channel)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)

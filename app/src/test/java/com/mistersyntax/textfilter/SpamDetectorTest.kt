@@ -1,5 +1,6 @@
 package com.mistersyntax.textfilter
 
+import com.mistersyntax.textfilter.filter.FilterRule
 import com.mistersyntax.textfilter.filter.SpamDetector
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -128,5 +129,43 @@ class SpamDetectorTest {
         val result = detector.analyze("See you tomorrow!")
         assertEquals(0f, result.score)
         assertTrue(result.matchedRules.isEmpty())
+    }
+
+    // ── User-defined keywords ─────────────────────────────────────────────────
+
+    @Test
+    fun `user keyword triggers spam`() {
+        val customRules = listOf(
+            FilterRule.KeywordRule(name = "\"harrydunnformd\"", keyword = "harrydunnformd", confidence = 1.0f)
+        )
+        val customDetector = SpamDetector(customRules)
+        val result = customDetector.analyze("Please read >> t.harrydunnformd.com/8mA4cltg")
+        assertTrue(result.isSpam)
+        assertTrue(result.matchedRules.contains("\"harrydunnformd\""))
+    }
+
+    @Test
+    fun `user keyword is case-insensitive`() {
+        val customRules = listOf(
+            FilterRule.KeywordRule(name = "\"winred\"", keyword = "winred", confidence = 1.0f)
+        )
+        val result = SpamDetector(customRules).analyze("Donate at WinRed.com today!")
+        assertTrue(result.isSpam)
+    }
+
+    @Test
+    fun `no rules means nothing is spam`() {
+        val result = SpamDetector(emptyList()).analyze("Stop2End donate now to fight back!")
+        assertFalse(result.isSpam)
+        assertEquals(0f, result.score)
+    }
+
+    @Test
+    fun `user keyword does not match unrelated message`() {
+        val customRules = listOf(
+            FilterRule.KeywordRule(name = "\"roaring\"", keyword = "roaring", confidence = 1.0f)
+        )
+        val result = SpamDetector(customRules).analyze("The lion let out a mighty sound.")
+        assertFalse(result.isSpam)
     }
 }

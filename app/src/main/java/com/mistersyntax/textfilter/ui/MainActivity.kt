@@ -29,11 +29,11 @@ class MainActivity : AppCompatActivity() {
     private val requestPermissions = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { grants ->
-        if (grants.values.all { it }) {
-            updateDefaultAppBanner()
-        } else {
+        val smsDenied = grants[Manifest.permission.RECEIVE_SMS] == false
+        if (smsDenied) {
             Toast.makeText(this, "SMS permission is required to detect spam", Toast.LENGTH_LONG).show()
         }
+        updateDefaultAppBanner()
     }
 
     private val requestDefaultSmsApp = registerForActivityResult(
@@ -59,6 +59,9 @@ class MainActivity : AppCompatActivity() {
         binding.recyclerView.adapter = adapter
 
         binding.btnMakeDefault.setOnClickListener { requestDefaultSmsAppRole() }
+        binding.btnManageFilters.setOnClickListener {
+            startActivity(Intent(this, RulesActivity::class.java))
+        }
         binding.btnClearAll.setOnClickListener {
             lifecycleScope.launch {
                 (application as TextFilterApp).database.blockedMessageDao().deleteAll()
@@ -75,8 +78,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkPermissions() {
-        val needed = listOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS)
-            .filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
+        val needed = listOf(
+            Manifest.permission.RECEIVE_SMS,
+            Manifest.permission.READ_SMS,
+            Manifest.permission.READ_CONTACTS,
+        ).filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
         if (needed.isNotEmpty()) {
             requestPermissions.launch(needed.toTypedArray())
         }

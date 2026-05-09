@@ -13,6 +13,9 @@
     <!-- Required to write to BlockedNumberContract when acting as default dialer -->
     <uses-permission android:name="android.permission.MANAGE_BLOCKED_NUMBERS" />
 
+    <!-- Used to skip filtering texts from saved contacts -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
     <application
         android:name=".TextFilterApp"
         android:allowBackup="true"
@@ -21,6 +24,11 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.TextFilter">
+
+        <activity
+            android:name=".ui.RulesActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity" />
 
         <activity
             android:name=".ui.MainActivity"
